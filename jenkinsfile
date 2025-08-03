@@ -5,104 +5,103 @@ pipeline {
         nodejs 'node23'
     }
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonar-scanner'
     }
     stages {
-        stage ("clean workspace") {
+        stage("Clean Workspace") {
             steps {
                 cleanWs()
             }
         }
-        stage ("Git Checkout") {
+        stage("Git Checkout") {
             steps {
-                 'git 'https://github.com/sureshgatti/DevOps-Project-Zomato.gi'
+                git url: 'https://github.com/sureshgatti/DevOps-Project-Zomato.git'
             }
         }
-        stage("Sonarqube Analysis"){
-            steps{
+        stage("Sonarqube Analysis") {
+            steps {
                 withSonarQubeEnv('sonar-server') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=zomato \
-                    -Dsonar.projectKey=zomato '''
+                    sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                        -Dsonar.projectName=zomato \
+                        -Dsonar.projectKey=zomato
+                    '''
                 }
             }
         }
-        stage("Code Quality Gate"){
-           steps {
+        stage("Code Quality Gate") {
+            steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                    waitForQualityGate abortPipeline: false
                 }
-            } 
+            }
         }
         stage("Install NPM Dependencies") {
             steps {
-                sh "npm install"
+                sh 'npm install'
             }
         }
-        stage('OWASP FS SCAN') {
+        stage("OWASP FS SCAN") {
             steps {
                 dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit -n', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-    }
-}
-        stage ("Trivy File Scan") {
-            steps {
-                sh "trivy fs . > trivy.txt"
             }
         }
-        stage ("Build Docker Image") {
+        stage("Trivy File Scan") {
             steps {
-                sh "docker build -t zomato ."
+                sh 'trivy fs . > trivy.txt'
             }
         }
-        stage ("Tag & Push to DockerHub") {
+        stage("Build Docker Image") {
+            steps {
+                sh 'docker build -t zomato .'
+            }
+        }
+        stage("Tag & Push to DockerHub") {
             steps {
                 script {
                     withDockerRegistry(credentialsId: 'docker') {
-                        sh "docker tag zomato gattisuresh/zomato:latest "
-                        sh "docker push gattisuresh/zomato:latest "
+                        sh 'docker tag zomato gattisuresh/zomato:latest'
+                        sh 'docker push gattisuresh/zomato:latest'
                     }
                 }
             }
         }
-        stage('Docker Scout Image') {
+        stage("Docker Scout Image") {
             steps {
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
-                       sh 'docker-scout quickview gattisuresh/zomato:latest'
-                       sh 'docker-scout cves gattisuresh/zomato:latest'
-                       sh 'docker-scout recommendations gattisuresh/zomato:latest'
-                   }
-                }
+                sh 'docker-scout quickview gattisuresh/zomato:latest'
+                sh 'docker-scout cves gattisuresh/zomato:latest'
+                sh 'docker-scout recommendations gattisuresh/zomato:latest'
             }
         }
-        stage ("Deploy to Container") {
+        stage("Deploy to Container") {
             steps {
                 sh 'docker run -d --name zomato -p 3000:3000 gattisuresh/zomato:latest'
             }
         }
     }
     post {
-    always {
-        emailext attachLog: true,
-            subject: "'${currentBuild.result}'",
-            body: """
-                <html>
-                <body>
-                    <div style="background-color: #FFA07A; padding: 10px; margin-bottom: 10px;">
-                        <p style="color: white; font-weight: bold;">Project: ${env.JOB_NAME}</p>
-                    </div>
-                    <div style="background-color: #90EE90; padding: 10px; margin-bottom: 10px;">
-                        <p style="color: white; font-weight: bold;">Build Number: ${env.BUILD_NUMBER}</p>
-                    </div>
-                    <div style="background-color: #87CEEB; padding: 10px; margin-bottom: 10px;">
-                        <p style="color: white; font-weight: bold;">URL: ${env.BUILD_URL}</p>
-                    </div>
-                </body>
-                </html>
-            """,
-            to: 'gattisuresh2000@gmail.com',
-            mimeType: 'text/html',
-            attachmentsPattern: 'trivy.txt'
+        always {
+            emailext attachLog: true,
+                subject: "'${currentBuild.result}'",
+                body: """
+                    <html>
+                    <body>
+                        <div style="background-color: #FFA07A; padding: 10px; margin-bottom: 10px;">
+                            <p style="color: white; font-weight: bold;">Project: ${env.JOB_NAME}</p>
+                        </div>
+                        <div style="background-color: #90EE90; padding: 10px; margin-bottom: 10px;">
+                            <p style="color: white; font-weight: bold;">Build Number: ${env.BUILD_NUMBER}</p>
+                        </div>
+                        <div style="background-color: #87CEEB; padding: 10px; margin-bottom: 10px;">
+                            <p style="color: white; font-weight: bold;">URL: ${env.BUILD_URL}</p>
+                        </div>
+                    </body>
+                    </html>
+                """,
+                to: 'gattisuresh2000@gmail.com',
+                mimeType: 'text/html',
+                attachmentsPattern: 'trivy.txt'
         }
     }
 }
