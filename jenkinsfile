@@ -23,6 +23,7 @@ pipeline {
                 withSonarQubeEnv('sonar-server') {
                     sh '''
                         $SCANNER_HOME/bin/sonar-scanner \
+                         SONAR_TOKEN = credentials('squ_850e6f59acd3e20633c0a655690d42975e4d9c6c')
                         -Dsonar.projectName=zomato \
                         -Dsonar.projectKey=zomato
                     '''
